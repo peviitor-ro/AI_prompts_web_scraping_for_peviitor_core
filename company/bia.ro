@@ -1,0 +1,47 @@
+Vreau să extragi mai întâi Company Model pentru firma dintr-un website de joburi, folosind targetare.ro ca sursă de adevăr, apoi (într-un pas separat) să extragi joburile. Company-ul trebuie rezolvat și validat înainte de orice logică de job scraping.
+
+Context:
+- Website joburi: https://cariere.bia.ro
+- Website companie (dacă este diferit): https://bia.ro
+- Sursa de date firme: https://targetare.ro (sau API-ul lor)
+- Numele companiei afișat pe site-ul de joburi: "BIA HUMAN CAPITAL SOLUTIONS SRL"
+
+Task 1 (OBLIGATORIU, FIRST):
+1. Caută compania pe targetare.ro după nume sau CUI.
+2. Confirmă exact CIF/CUI-ul (8 cifre, fără prefix RO).
+3. Confirmă denumirea legală exactă cu DIACRITICE (dacă este disponibilă).
+4. Extrage adresa / localitatea (location).
+5. Setează status-ul pe baza câmpului de stare al firmei din Registrul Comerțului / targetare.ro:
+   - Mapare:
+     - "functioneaza", "in functiune", "active" → "activ"
+     - "suspendata", "suspendat" → "suspendat"
+     - "radiata", "radiat", "dizolvata", "lichidata" → "radiat"
+     - orice alt status neclar, dar firma nu este radiată → "inactiv"
+6. Setează:
+   - website = URL-ul oficial al companiei (fără slash la final, https obligatoriu dacă există)
+   - career = URL-ul paginii de cariere/joburi (fără slash la final)
+
+Output pentru Task 1:
+- Întoarce STRICT un singur obiect JSON (NU array) care respectă Company Model Schema de mai jos.
+
+Company Model Schema (final JSON object):
+{
+  "id": "CIF_8_CIFRE",
+  "company": "DENUMIRE LEGALĂ CU DIACRITICE",
+  "status": "activ|suspendat|inactiv|radiat",
+  "location": "Adresa sau localitatea, cu diacritice, ex: \"București\", \"Str. Horia Măcelariu 61-81, Sector 1, București\"",
+  "website": "https://domeniu.tld",
+  "career": "https://domeniu.tld/careers-sau-jobs"
+}
+
+Reguli:
+- Nu inventa CIF-ul: trebuie să provină din targetare.ro / API.
+- Nu inventa denumirea legală: ia exact forma din Registrul Comerțului / targetare.ro (cu diacritice, dacă există).
+- Dacă status-ul firmei nu este explicit, dar compania apare ca activă în targetare.ro, setează status = "activ".
+- Dacă firma este radiată / lichidată / închisă, setează status ≠ "activ" și NU te apuci de job scraping pentru ea (în pașii următori).
+- Output-ul trebuie să fie VALID JSON și să nu conțină câmpuri suplimentare față de schemă.
+- Nu include câmpuri cu valoare null sau string gol.
+
+IMPORTANT:
+- În acest prompt, răspunzi DOAR cu obiectul JSON pentru Company Model.
+- Nu extragi încă joburile, nu explici pașii, nu adaugi comentarii în afara JSON-ului.
