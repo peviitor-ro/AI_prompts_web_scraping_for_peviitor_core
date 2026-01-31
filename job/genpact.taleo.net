@@ -1,0 +1,219 @@
+Vreau să rezolvi două taskuri în acest prompt, dar ca OUTPUT pentru mine să dai DOAR lista de joburi (Task 2). Task 1 îl rulezi intern, ca AI care își setează corect contextul despre companie (CIF, denumire, adresă), fără să-mi afișezi obiectul Company.
+
+Context:
+- Website joburi (UI): [https://genpact.taleo.net/careersection/sgy_external_career_section/jobsearch.ftl?lang=en&portal=44100025334](https://genpact.taleo.net/careersection/sgy_external_career_section/jobsearch.ftl?lang=en&portal=44100025334)
+- Endpoint joburi (Taleo API): [https://genpact.taleo.net/careersection/rest/jobboard/searchjobs?lang=en&portal=44100025334](https://genpact.taleo.net/careersection/rest/jobboard/searchjobs?lang=en&portal=44100025334)
+- Website companie: [https://www.genpact.com](https://www.genpact.com)
+- Sursa de date firme (România): [https://targetare.ro](https://targetare.ro) (sau API-ul lor)
+- Numele companiei România: „GENPACT ROMANIA SRL”
+
+========================================
+TASK 1 (INTERN) – LEARN COMPANY MODEL
+========================================
+Scop: să afli corect CIF-ul, denumirea legală și adresa firmei din România, ca să poți popula câmpurile `company` și `cif` din Job Model cu valori 100% corecte. Rezultatul Task 1 NU se afișează către utilizator, este DOAR context intern.
+
+1. Caută compania pe targetare.ro după nume sau CUI și identifică pagina dedicată:
+   - ex.: [https://targetare.ro/17362595/genpact-romania-srl](https://targetare.ro/17362595/genpact-romania-srl)
+
+2. Din pagina targetare.ro:
+   - Ia exact „Codul unic de înregistrare (CUI)” (8 cifre, fără prefix RO).
+   - Ia denumirea legală exactă a firmei (cu diacritice dacă există).
+   - Ia descrierea sediului social (localitatea + adresă completă), cu diacritice.
+
+3. Din aceste date, construiește intern (FĂRĂ să afișezi) un obiect Company Model de forma:
+
+   JSON_START
+   {
+     "id": "<CIF_8_cifre>",
+     "company": "<DENUMIRE LEGALĂ CU DIACRITICE>",
+     "status": "activ|suspendat|inactiv|radiat",
+     "location": "<Adresa/localitatea cu diacritice>",
+     "website": "https://www.genpact.com",
+     "career": "https://genpact.taleo.net/careersection/sgy_external_career_section/jobsearch.ftl?lang=en&portal=44100025334"
+   }
+   JSON_END
+
+   Reguli pentru status:
+   - "functioneaza", "în funcțiune", "active" → "activ"
+   - "suspendata", "suspendat" → "suspendat"
+   - "radiata", "radiat", "dizolvata", "lichidata" → "radiat"
+   - orice alt status neclar, dar firma nu este radiată → "inactiv"
+   - Dacă nu găsești explicit un status, dar firma apare ca activă (date financiare recente, fără mențiuni de radiere), setează `status = "activ"`.
+   - Dacă `status ≠ "activ"`, oprești TOT (nu mai extragi joburi).
+
+4. FOARTE IMPORTANT:
+   - Păstrezi intern:
+     - `company` = denumirea legală exactă
+     - `cif` = CIF/CUI exact (8 cifre)
+   - Aceste două valori le vei folosi la popularea câmpurilor `company` și `cif` din fiecare job.
+
+5. NU AFIȘA obiectul Company Model în răspunsul final. Task 1 este doar un pas de „învățare”/setare context pentru tine ca AI.
+
+========================================
+TASK 2 – OUTPUT = LISTA DE JOBURI (Solr)
+========================================
+Dacă în Task 1 ai obținut `status = "activ"`, treci la extragerea joburilor pentru România. OUTPUT-ul FINAL pentru acest prompt TREBUIE să fie DOAR ARRAY-UL JSON de joburi, în format Solr, conform cerințelor de mai jos.
+
+1. Surse de joburi:
+   - Poți folosi oricare dintre variante, dar rezultatul final trebuie să includă TOATE joburile vizibile pentru România în UI:
+     - a) HTML-ul de la: [https://genpact.taleo.net/careersection/sgy_external_career_section/jobsearch.ftl?lang=en&portal=44100025334](https://genpact.taleo.net/careersection/sgy_external_career_section/jobsearch.ftl?lang=en&portal=44100025334)
+     - b) Endpoint-ul JSON (recomandat): [https://genpact.taleo.net/careersection/rest/jobboard/searchjobs?lang=en&portal=44100025334](https://genpact.taleo.net/careersection/rest/jobboard/searchjobs?lang=en&portal=44100025334)
+
+2. Dacă folosești endpoint-ul JSON (varianta recomandată):
+
+   - Metodă: POST
+   - Header-e minime:
+     - Accept: application/json, text/javascript, */*; q=0.01
+     - Content-Type: application/json
+     - Origin: [https://genpact.taleo.net](https://genpact.taleo.net)
+     - Referer: [https://genpact.taleo.net/careersection/sgy_external_career_section/jobsearch.ftl?lang=en&portal=44100025334](https://genpact.taleo.net/careersection/sgy_external_career_section/jobsearch.ftl?lang=en&portal=44100025334)
+     - X-Requested-With: XMLHttpRequest
+     - Cookie: locale=en
+
+   - Body template pentru listare completă (fără filtre):
+
+     JSON_START
+     {
+       "multilineEnabled": false,
+       "sortingSelection": {
+         "sortBySelectionParam": "3",
+         "ascendingSortingOrder": "false"
+       },
+       "fieldData": {
+         "fields": {
+           "KEYWORD": "",
+           "LOCATION": ""
+         },
+         "valid": true
+       },
+       "filterSelectionParam": {
+         "searchFilterSelections": [
+           { "id": "POSTING_DATE", "selectedValues": [] },
+           { "id": "ORGANIZATION", "selectedValues": [] },
+           { "id": "LOCATION", "selectedValues": [] },
+           { "id": "JOB_FIELD", "selectedValues": [] },
+           { "id": "JOB_SCHEDULE", "selectedValues": [] }
+         ]
+       },
+       "advancedSearchFiltersSelectionParam": {
+         "searchFilterSelections": [
+           { "id": "ORGANIZATION", "selectedValues": [] },
+           { "id": "LOCATION", "selectedValues": [] },
+           { "id": "JOB_FIELD", "selectedValues": [] },
+           { "id": "JOB_NUMBER", "selectedValues": [] },
+           { "id": "URGENT_JOB", "selectedValues": [] },
+           { "id": "EMPLOYEE_STATUS", "selectedValues": [] },
+           { "id": "STUDY_LEVEL", "selectedValues": [] },
+           { "id": "WILL_TRAVEL", "selectedValues": [] },
+           { "id": "JOB_SHIFT", "selectedValues": [] }
+         ]
+       },
+       "pageNo": 1
+     }
+     JSON_END
+
+   - Paginare:
+     - Rulezi request-ul cu `pageNo` = 1, 2, 3, … până când:
+       - lista de rezultate pentru pagina curentă este goală SAU
+       - ai depășit `totalJobs` (dacă există în JSON).
+     - Concatenezi toate joburile din toate paginile.
+
+3. Filtrare joburi:
+   - Consideră ACTIVE toate joburile returnate în lista standard (Taleo nu afișează, de regulă, joburi închise).
+   - Dacă în JSON există câmp de status (Closed, Cancelled, Inactive etc.), exclude explicit acele joburi.
+   - Poți filtra opțional doar joburile cu locații în România (Bucharest/București, Cluj-Napoca, Iași, etc.) dacă JSON-ul conține locații globale, dar UI-ul cerut e cel pentru România.
+
+4. Pentru fiecare job activ, construiește un obiect JSON cu schema Job Model:
+
+   - url (string, required)
+     - URL-ul complet al paginii de detaliu a jobului.
+     - De regulă: `https://genpact.taleo.net` + path-ul relativ din JSON (ex.: `/careersection/sgy_external_career_section/jobdetail.ftl?job=CPG062460&tz=...`).
+
+   - title (string, required)
+     - Titlul postului, extras din JSON (ex.: `jobTitle`), fără HTML, trimmat, max 200 caractere, cu diacritice acceptate.
+
+   - company (string, required)
+     - Valoare fixă luată din Company Model intern (Task 1).
+     - Pentru Genpact România: "GENPACT ROMANIA SRL" (exact denumirea legală din targetare.ro).
+
+   - cif (string, required)
+     - Valoare fixă luată din Company Model intern (Task 1).
+     - Pentru Genpact România: "17362595" (8 cifre, fără RO).
+
+   - location (string, optional)
+     - Textul localității/localităților din JSON (câmp „Location” / „locationDescription”).
+     - Normalizează orașele românești:
+       - "Bucharest" → "București"
+       - "Cluj-Napoca" → "Cluj-Napoca" (păstrezi forma asta)
+       - "Iasi" → "Iași"
+       - "Pitesti" → "Pitești"
+       - "Constanta" → "Constanța"
+       - "Popesti Leordeni" → "Popești-Leordeni"
+     - Dacă sunt mai multe locații, păstrează-le separate prin virgulă.
+     - Dacă nu există locație clară, poți omite câmpul `location`.
+
+   - tags (array, optional)
+     - Nu include câmpul dacă nu există taguri / categorii clare.
+     - Dacă poți deriva taguri din JSON (job field, departament, job type, nivel etc.):
+       - lowercase
+       - fără diacritice
+       - max 20 de valori
+       - tip slug (doar litere, cifre, cratime), ex.:
+         ["finance","order-management","cluj-napoca","senior","german"]
+
+   - workmode (string, optional)
+     - Dacă în titlu/descriere/JSON apare clar remote/hybrid:
+       - dacă textul conține „remote”, „work from home” → "remote"
+       - dacă textul conține „hybrid” → "hybrid"
+     - Altfel:
+       - setează "on-site".
+
+   - date (date, optional)
+     - Ia data publicării jobului din câmpul „Posting Date” / „Posted Date” din JSON.
+     - Normalizează la format ISO8601 UTC cu ora 00:00:00Z.
+     - Exemplu:
+       - 2026-01-30 → "2026-01-30T00:00:00Z"
+       - 16-Jan-2026 → "2026-01-16T00:00:00Z"
+     - Dacă nu există dată de publicare, nu include câmpul `date`.
+
+   - status (string, optional)
+     - Întotdeauna "scraped".
+
+   - vdate (date, optional)
+     - NU include acest câmp.
+
+   - expirationdate (date, optional)
+     - Dacă nu există dată de expirare în JSON:
+       - dacă ai `date`:
+         - expirationdate = date + 30 zile
+         - Format: ISO8601 UTC, ora 00:00:00Z.
+       - dacă nu ai `date`:
+         - NU include `expirationdate`.
+
+   - salary (string, optional)
+     - NU include acest câmp pentru această firmă, indiferent ce apare în text sau JSON.
+
+----------------
+REGULI DE OUTPUT
+----------------
+- NU întoarce NICIUN câmp cu valoare null sau array gol:
+  - fără `"tags": []`
+  - fără `"salary": null`
+- Respectă EXACT numele câmpurilor și tipurile:
+  - `url`, `title`, `company`, `cif`, `location`, `tags`, `workmode`, `date`, `status`, `expirationdate`
+- OUTPUT FINAL (ce îmi trimiți mie ca utilizator) = STRICT un ARRAY JSON:
+
+  JSON_START
+  [
+    { ... },
+    { ... },
+    ...
+  ]
+  JSON_END
+
+- Fără obiect root, fără Company Model afișat, fără explicații / comentarii în afara JSON-ului.
+- În răspunsul tău către mine, pune acest ARRAY într-un bloc Markdown de tip ```json, astfel încât să pot face copy-paste direct în Solr.
+
+IMPORTANT:
+- Task 1 îl folosești DOAR pentru a-ți seta intern `company` și `cif` (și eventual pentru validări).
+- Eu, ca utilizator, vreau să văd DOAR rezultatul Task 2: lista de joburi active în format Solr, cu câmpurile `company` și `cif` completate corect pe baza datelor reale din targetare.ro.
