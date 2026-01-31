@@ -1,0 +1,149 @@
+Vreau să rezolvi două taskuri în acest prompt, dar ca OUTPUT pentru mine să dai DOAR lista de joburi (Task 2). Task 1 îl rulezi intern, ca AI care își setează corect contextul despre companie (CIF, denumire, adresă), fără să-mi afișezi obiectul Company.
+
+Context:
+- Website companie / magazin online: https://spishop.ro
+- Pagină cariere: https://spishop.ro/ro/content/12-cariere
+- Sursa de date firme: https://targetare.ro (sau API-ul lor)
+- Denumirea companiei (de validat în Registrul Comerțului / targetare.ro): "SECPRAL PRO INSTALAȚII SRL"
+
+========================================
+TASK 1 (INTERN) – LEARN COMPANY MODEL
+========================================
+Scop: să afli corect CIF-ul, denumirea legală și adresa firmei, ca să poți popula câmpurile company și cif din Job Model cu valori 100% corecte. Rezultatul Task 1 NU se afișează către utilizator, este DOAR context intern.
+
+1. Caută compania pe targetare.ro după nume sau CUI și identifică pagina dedicată:
+   - ex.: https://targetare.ro/10166281/secpral-pro-instalatii-srl
+
+2. Din pagina targetare.ro:
+   - Ia exact „Codul unic de înregistrare (CUI)” (8 cifre, fără prefix RO).
+   - Ia denumirea legală exactă a firmei (cu diacritice dacă există).
+   - Ia descrierea sediului social (localitatea + adresă completă), cu diacritice.
+
+3. Din aceste date, construiește intern (FĂRĂ să afișezi) un obiect Company Model de forma:
+
+   {
+     "id": "<CIF_8_cifre>",
+     "company": "<DENUMIRE LEGALĂ CU DIACRITICE>",
+     "status": "activ|suspendat|inactiv|radiat",
+     "location": "<Adresa/localitatea cu diacritice>",
+     "website": "https://spishop.ro",
+     "career": "https://spishop.ro/ro/content/12-cariere"
+   }
+
+   Reguli pentru status:
+   - Mapează statusul din Registrul Comerțului / targetare.ro astfel:
+     - "functioneaza", "în funcțiune", "active" → "activ"
+     - "suspendata", "suspendat" → "suspendat"
+     - "radiata", "radiat", "dizolvata", "lichidata" → "radiat"
+     - orice alt status neclar, dar firma nu este radiată → "inactiv"
+   - Dacă nu găsești explicit un status, dar firma apare ca activă (date financiare recente, fără mențiuni de radiere), setează status = "activ".
+   - Dacă status ≠ "activ", oprești TOT (nu mai extragi joburi).
+
+4. FOARTE IMPORTANT:
+   - Păstrezi intern:
+     - company = denumirea legală exactă
+     - cif = CIF/CUI exact (8 cifre)
+   - Aceste două valori le vei folosi la popularea câmpurilor company și cif din fiecare job.
+
+5. NU AFIȘA obiectul Company Model în răspunsul final. Task 1 este doar un pas de „învățare”/setare context pentru tine ca AI.
+
+========================================
+TASK 2 – OUTPUT = LISTA DE JOBURI (Solr)
+========================================
+Dacă în Task 1 ai obținut status = "activ", treci la extragerea joburilor. OUTPUT-ul FINAL pentru acest prompt TREBUIE să fie DOAR ARRAY-UL JSON de joburi, în format Solr, conform cerințelor de mai jos.
+
+1. Deschide și parcurge pagina:
+   - https://spishop.ro/ro/content/12-cariere
+   - Dacă există linkuri către alte pagini de joburi (de ex. pagini dedicate fiecărui post), parcurge-le pe toate.
+
+2. Selectează DOAR joburile ACTIVE:
+   - Include DOAR posturile marcate explicit ca „Poziții disponibile” sau listate în secțiunea de joburi active.
+   - Ignoră orice referință generică, text de prezentare sau poziții care apar ca „închise”, „ocupate” sau fără detalii concrete de post.
+
+3. Pentru fiecare job activ, construiește un obiect JSON cu schema:
+
+   - url (string, required)
+     - URL-ul complet al paginii de detaliu a jobului (dacă există link dedicat).
+     - Dacă jobul este doar listat pe pagina de cariere, folosește URL-ul paginii de cariere + ancora/selecția relevantă, sau pur și simplu https://spishop.ro/ro/content/12-cariere.
+
+   - title (string, required)
+     - Titlul postului, extras din listarea de pe pagina de cariere (ex.: „Reprezentant vânzări HVAC Cluj”),
+       fără HTML, trimmat, max 200 caractere, cu diacritice acceptate.
+
+   - company (string, required)
+     - Valoare fixă luată din Company Model intern (Task 1).
+     - Pentru SECPRAL: denumirea legală exactă din targetare.ro (ex.: "SECPRAL PRO INSTALAȚII SRL").
+
+   - cif (string, required)
+     - Valoare fixă luată din Company Model intern (Task 1).
+     - Pentru SECPRAL: CUI-ul exact cu 8 cifre (ex.: "10166281").
+
+   - location (string, optional)
+     - Textul localității/localităților menționate în descrierea jobului (ex.: „Cluj-Napoca”, „Timișoara”).
+     - Aplică normalizările pe fiecare nume de oraș:
+       - "Bucuresti" → "București"
+       - "Iasi" → "Iași"
+       - "Pitesti" → "Pitești"
+       - "Constanta" → "Constanța"
+       - "Popesti Leordeni" → "Popești-Leordeni"
+     - Dacă nu se menționează explicit orașul, poți omite câmpul location.
+
+   - tags (array, optional)
+     - Nu include câmpul dacă nu există taguri/keyworduri clare.
+     - Dacă poți deriva taguri din titlu sau textul scurt (de ex. domeniu, nivel, tehnologie):
+       - lowercase
+       - fără diacritice
+       - max 20 de valori
+       - tip slug (doar litere, cifre, cratime), ex.:
+         ["vanzari","hvac","inginer","logistica"]
+
+   - workmode (string, optional)
+     - Dacă nu apare explicit remote/hybrid pentru job:
+       - setează "on-site".
+     - Dacă apare clar „remote” sau „hybrid”, poți folosi "remote" sau "hybrid".
+
+   - date (date, optional)
+     - Dacă există o dată clară a publicării jobului în pagină (ex. „Publicat la: DD luna YYYY” sau „Actualizat la: DD luna YYYY”):
+       - Convertește în ISO8601 UTC cu ora 00:00:00Z.
+       - Exemplu:
+         - „Publicat la: 16 ianuarie 2026” → "2026-01-16T00:00:00Z"
+       - Mapează corect lunile românești (ianuarie, februarie, martie etc.) la lunile numerice.
+     - Dacă nu există o astfel de dată, nu include câmpul date.
+
+   - status (string, optional)
+     - Întotdeauna "scraped".
+
+   - vdate (date, optional)
+     - NU include acest câmp.
+
+   - expirationdate (date, optional)
+     - Dacă în HTML nu există dată de expirare:
+       - dacă ai date:
+         - expirationdate = date + 30 zile.
+       - dacă nu ai date:
+         - NU include expirationdate.
+       - Format: ISO8601 UTC, ora 00:00:00Z.
+
+   - salary (string, optional)
+     - NU include acest câmp pentru această firmă, indiferent ce apare în text.
+
+----------------
+REGULI DE OUTPUT
+----------------
+- NU întoarce NICIUN câmp cu valoare null sau array gol:
+  - fără "tags": []
+  - fără "salary": null
+- Respectă EXACT numele câmpurilor și tipurile:
+  - url, title, company, cif, location, tags, workmode, date, status, expirationdate
+- OUTPUT FINAL (ce îmi trimiți mie ca utilizator) = STRICT un ARRAY JSON:
+  [
+    { ... },
+    { ... },
+    ...
+  ]
+- Fără obiect root, fără Company Model afișat, fără explicații / comentarii în afara JSON-ului.
+- Formatează ARRAY-ul într-un bloc Markdown de tip ```json, astfel încât să pot face copy-paste direct în Solr.
+
+IMPORTANT:
+- Task 1 îl folosești DOAR pentru a-ți seta intern company și cif (și eventual pentru validări).
+- Eu, ca utilizator, vreau să văd DOAR rezultatul Task 2: lista de joburi active în format Solr, cu câmpurile company și cif completate corect pe baza datelor reale din targetare.ro.
