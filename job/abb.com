@@ -1,4 +1,4 @@
-Textul de mai jos este exact ca primul tău prompt, doar că am înlocuit firma BIA cu ABB ASEA BROWN BOVERI SRL și site-urile aferente:
+
 
 Vreau să rezolvi două taskuri în acest prompt, dar ca OUTPUT pentru mine să dai DOAR lista de joburi (Task 2). Task 1 îl rulezi intern, ca AI care își setează corect contextul despre companie (CIF, denumire, adresă), fără să-mi afișezi obiectul Company.
 
